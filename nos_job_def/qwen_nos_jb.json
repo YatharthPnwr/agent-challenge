@@ -1,7 +1,7 @@
 {
   "ops": [
     {
-      "id": "qwen2.5:32b",
+      "id": "qwen2:32b",
       "args": {
         "cmd": [
           "-c",
