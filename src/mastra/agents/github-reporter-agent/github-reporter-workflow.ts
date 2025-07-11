@@ -113,6 +113,8 @@ const repoDataSchema = z.object({
     isArchived: z.boolean(),
     isDisabled: z.boolean(),
   }),
+  chartUrl: z.string().optional(),
+  languagesChartUrl: z.string().optional(),
 });
 
 const parseGitHubUrl = (url: string): { owner: string; repo: string } => {
@@ -245,7 +247,7 @@ const generateReport = createStep({
       throw new Error("Repository data not found");
     }
     // Ask the LLM for 2-3 interesting insights about the repo, not the whole Markdown
-    const insightPrompt = `Given the following GitHub repository data, provide 2-3 interesting, actionable insights for a developer or contributor. Be friendly and concise.\n\n${JSON.stringify(repoData, null, 2)}`;
+    const insightPrompt = `Given the following GitHub repository data, return ONLY 2-3 short bullet points of actionable insights for a developer or contributor. Do NOT repeat the repository data or generate a full report. Only output the bullet points.\n\n${JSON.stringify(repoData, null, 2)}`;
     let insights = "";
     try {
       const response = await agent.stream([
@@ -257,19 +259,63 @@ const generateReport = createStep({
     } catch (e) {
       insights = "(No insights available.)";
     }
+    // Only keep the first 3 bullet points (lines starting with - or *)
+    const insightLines = insights.split(/\r?\n/).filter(line => line.trim().startsWith("-") || line.trim().startsWith("*"));
+    const topInsights = insightLines.slice(0, 3).join("\n");
     // Compose the emoji-rich Markdown report in code, now with a stats table
     const { repository, statistics, contributors, activity, pullRequests, license, status } = repoData;
     const contributorsList = contributors.length > 0
-      ? contributors.map((c, i) => `  ${i + 1}. [${c.username}](${c.profileUrl}) — **${c.contributions.toLocaleString()}** commits`).join("\n")
-      : "  No contributors found.";
+      ? contributors.map((c, i) => `- ${i + 1}. [${c.username}](${c.profileUrl}) — **${c.contributions.toLocaleString()}** commits`).join("\n")
+      : "- No contributors found.";
     const licenseText = license ? `${license.name} (${license.spdxId})` : "No license specified";
-    const statusText = `🔒 Private: **${status.isPrivate ? "Yes" : "No"}**  |  🗄️ Archived: **${status.isArchived ? "Yes" : "No"}**  |  🚦 Disabled: **${status.isDisabled ? "Yes" : "No"}**`;
-    const activityText = `\n- **Created:** ${new Date(activity.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}\n- **Last Updated:** ${new Date(activity.lastUpdate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}\n- **Last Push:** ${new Date(activity.lastPush).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`;
-    const prText = `\n- 🔄 **Open PRs:** ${pullRequests.open}\n- ✅ **Closed PRs:** ${pullRequests.closed}\n- 📦 **Total PRs:** ${pullRequests.total}`;
-    const statsTable = `\n| Stat | Value |\n|------|-------|\n| ⭐ Stars | ${statistics.stars.toLocaleString()} |\n| 🍴 Forks | ${statistics.forks.toLocaleString()} |\n| 🐛 Open Issues | ${statistics.openIssues.toLocaleString()} |\n| 👀 Watchers | ${statistics.watchers.toLocaleString()} |\n| 📝 Language | ${statistics.primaryLanguage || "Not specified"} |\n| 🏷️ License | ${licenseText} |\n| 🔒 Private | ${status.isPrivate ? "Yes" : "No"} |\n| 🗄️ Archived | ${status.isArchived ? "Yes" : "No"} |\n| 🚦 Disabled | ${status.isDisabled ? "Yes" : "No"} |\n| 🕒 Created | ${new Date(activity.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} |\n| 🔄 Last Updated | ${new Date(activity.lastUpdate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} |\n| ⏩ Last Push | ${new Date(activity.lastPush).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} |`;
-    const friendlyIntro = `# 📊 GitHub Repository Report: [${repository.fullName}](https://github.com/${repository.fullName})\n\n${repository.description ? `> _${repository.description}_\n` : ""}`;
+    const statusText = `- 🔒 Private: **${status.isPrivate ? "Yes" : "No"}**\n- 🗄️ Archived: **${status.isArchived ? "Yes" : "No"}**\n- 🚦 Disabled: **${status.isDisabled ? "Yes" : "No"}**`;
+    const activityText = `- **Created:** ${new Date(activity.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}\n- **Last Updated:** ${new Date(activity.lastUpdate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}\n- **Last Push:** ${new Date(activity.lastPush).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`;
+    const prText = `- 🔄 **Open PRs:** ${pullRequests.open}\n- ✅ **Closed PRs:** ${pullRequests.closed}\n- 📦 **Total PRs:** ${pullRequests.total}`;
+    const statsTable = `| Stat | Value |\n|------|-------|\n| ⭐ Stars | ${statistics.stars.toLocaleString()} |\n| 🍴 Forks | ${statistics.forks.toLocaleString()} |\n| 🐛 Open Issues | ${statistics.openIssues.toLocaleString()} |\n| 👀 Watchers | ${statistics.watchers.toLocaleString()} |\n| 📝 Language | ${statistics.primaryLanguage || "Not specified"} |\n| 🏷️ License | ${licenseText} |\n| 🔒 Private | ${status.isPrivate ? "Yes" : "No"} |\n| 🗄️ Archived | ${status.isArchived ? "Yes" : "No"} |\n| 🚦 Disabled | ${status.isDisabled ? "Yes" : "No"} |\n| 🕒 Created | ${new Date(activity.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} |\n| 🔄 Last Updated | ${new Date(activity.lastUpdate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} |\n| ⏩ Last Push | ${new Date(activity.lastPush).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })} |`;
+    const friendlyIntro = `# 📊 GitHub Repository Report\n\n[${repository.fullName}](https://github.com/${repository.fullName})\n\n${repository.description ? `> _${repository.description}_` : ""}`;
     const friendlyOutro = `\n---\n✨ _This report was generated by your friendly GitHub Reporter Agent!_ ✨`;
-    const markdown = `\n${friendlyIntro}\n\n${statsTable}\n\n## 👤 Owner\n- **${repository.owner}** (${repository.ownerType})\n\n## 👥 Top Contributors\n${contributorsList}\n\n## 🕒 Activity Timeline\n${activityText}\n\n## 🔄 Pull Requests\n${prText}\n\n## 📜 License\n- ${licenseText}\n\n## 🏷️ Status\n${statusText}\n\n## 💡 Insights\n${insights}\n${friendlyOutro}\n`;
+    
+    // Add chart images if present
+    const barChartSection = repoData.chartUrl ? `\n\n![Repository Statistics Bar Chart](${repoData.chartUrl})\n` : "";
+    const languagePieChartSection = repoData.languagesChartUrl ? `\n\n![Language Distribution Pie Chart](${repoData.languagesChartUrl})\n` : "";
+
+    const markdown = `
+${friendlyIntro}
+
+## 📈 Statistics
+
+${statsTable}
+${barChartSection}${languagePieChartSection}
+
+## 👤 Owner
+
+- **${repository.owner}** (${repository.ownerType})
+
+## 👥 Top Contributors
+
+${contributorsList}
+
+## 🕒 Activity Timeline
+
+${activityText}
+
+## 🔄 Pull Requests
+
+${prText}
+
+## 📜 License
+
+- ${licenseText}
+
+## 🏷️ Status
+
+${statusText}
+
+## 💡 Insights
+
+${topInsights || insights}
+${friendlyOutro}
+`;
     return {
       report: markdown,
     };

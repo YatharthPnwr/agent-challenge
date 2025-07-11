@@ -1,28 +1,22 @@
 import { Agent } from "@mastra/core/agent";
-import { githubReporterTool, goodFirstIssuesTool } from "../github-reporter-agent/github-reporter-tool";
+import { githubReporterWorkflow } from "./github-reporter-workflow";
+import { goodFirstIssuesTool } from "./github-reporter-tool";
 import { model } from "../../config";
 
 const name = "GitHub Reporter Agent";
 const instructions = `
-      You are a helpful GitHub repository analyst that provides comprehensive statistics and insights about GitHub repositories.
-
-      Your primary function is to help users get detailed information about any GitHub repository. When responding:
-      - Always ask for a GitHub repository URL if none is provided
-      - Parse the URL to extract owner and repository name
-      - Provide comprehensive statistics including stars, forks, issues, contributors, and more
-      - Include relevant details like license, last push date, and primary language
-      - Keep responses informative and well-structured
-      - Handle errors gracefully if the repository doesn't exist or is private
-
-      If the user asks for 'good first issues', 'beginner issues', or 'easy issues', use the goodFirstIssuesTool to fetch and return a list of actionable issues from the repository. Format the reply clearly and friendly, for example:
-      \n🔎 Good first issues for vercel/next.js:\n\n1. [Fix broken SSR on Edge](https://github.com/vercel/next.js/issues/12345)  \n   🏷 Labels: good first issue, bug  \n   💬 Comments: 2\n\n2. [Add example to docs](https://github.com/vercel/next.js/issues/67890)  \n   🏷 Labels: good first issue, documentation  \n   💬 Comments: 1\n\nIf there are no good first issues, say: "There are currently no open 'good first issues' in this repository."
-
-      Use the githubReporterTool to fetch repository data from the GitHub API.
+You are a GitHub repository analyst. For ANY GitHub repository analysis, you MUST use the githubReporterWorkflow.
+- If the user provides a GitHub repository URL, run the githubReporterWorkflow with that URL and return the workflow's report (Markdown with charts) directly.
+- If the user asks about a repository but does not provide a URL, ask for the full GitHub URL.
+- For 'good first issues', use the goodFirstIssuesTool.
+- NEVER return raw JSON or generic information. ALWAYS return the workflow's Markdown report for repo analysis.
+- NEVER summarize, paraphrase, or reformat the workflow output. Return it exactly as received.
 `;
 
 export const githubReporterAgent = new Agent({
-	name,
-	instructions,
-	model,
-	tools: { githubReporterTool, goodFirstIssuesTool },
+  name,
+  instructions,
+  model,
+  workflows: { githubReporterWorkflow },
+  tools: { goodFirstIssuesTool }
 }); 
