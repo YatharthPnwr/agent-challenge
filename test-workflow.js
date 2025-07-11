@@ -90,18 +90,18 @@ async function testWorkflow() {
     // Test 3: Good First Issues
     console.log('🧪 Test 3: Good First Issues');
     const issuesResponse = await fetch('http://localhost:8080/agents/githubReporterAgent/run', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages: [{
-          role: 'user',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [{
+            role: 'user',
           content: 'Get good first issues for https://github.com/facebook/react-native'
-        }]
-      })
-    });
-    
+          }]
+        })
+      });
+      
     if (issuesResponse.ok) {
       const result = await issuesResponse.json();
       console.log('✅ Good First Issues API call successful!');
@@ -116,7 +116,7 @@ async function testWorkflow() {
         
         if (hasIssues) {
           console.log('✅ SUCCESS: Good First Issues feature working!');
-        } else {
+      } else {
           console.log('❌ FAILURE: Good First Issues feature not working properly');
         }
       }

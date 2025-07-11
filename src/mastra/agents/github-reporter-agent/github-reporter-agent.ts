@@ -1,6 +1,6 @@
 import { Agent } from "@mastra/core/agent";
 import { githubReporterWorkflow } from "./github-reporter-workflow";
-import { goodFirstIssuesTool, repositoryVisualizationTool } from "./github-reporter-tool";
+import { goodFirstIssuesTool, goodFirstIssuesWithGuideTool, repositoryVisualizationTool } from "./github-reporter-tool";
 import { model } from "../../config";
 
 const name = "GitHub Reporter Agent";
@@ -20,13 +20,16 @@ For visualization requests:
 - Do NOT modify, summarize, or reformat the visualization output.
 
 For 'good first issues':
-- Use the goodFirstIssuesTool.
+- Use the goodFirstIssuesTool for basic good first issues.
+- Use the goodFirstIssuesWithGuideTool when users ask for "good first issues with guide", "how to solve good first issues", "good first issues with steps", or similar requests that indicate they want specific guidance on how to solve each issue.
+- The guide tool provides issue-specific, actionable plans for each good first issue, including understanding the issue, action plans, file suggestions, testing strategies, and expected deliverables.
 
 IMPORTANT: 
 - Analysis reports should NOT include charts
 - Only use visualization tool when specifically asked to visualize/visualise/show charts
 - For regular repository analysis, use the workflow
 - For visualization requests, use the visualization tool and return the complete formatted output
+- For good first issues with specific guidance, use the guide tool which provides tailored plans for each issue
 `;
 
 export const githubReporterAgent = new Agent({
@@ -34,5 +37,5 @@ export const githubReporterAgent = new Agent({
   instructions,
   model,
   workflows: { githubReporterWorkflow },
-  tools: { goodFirstIssuesTool, repositoryVisualizationTool }
+  tools: { goodFirstIssuesTool, goodFirstIssuesWithGuideTool, repositoryVisualizationTool }
 }); 
