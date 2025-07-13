@@ -98,7 +98,7 @@ export const githubReporterTool = createTool({
 
 export const repositoryVisualizationTool = createTool({
 	id: "repository-visualization",
-	description: "Generate bar chart and pie chart visualizations for a GitHub repository",
+	description: "Generate bar chart, pie chart, and commits over time visualizations for a GitHub repository",
 	inputSchema: z.object({
 		repoUrl: z.string().describe("GitHub repository URL, e.g., https://github.com/vercel/next.js"),
 	}),
@@ -112,6 +112,8 @@ export const repositoryVisualizationTool = createTool({
 	execute: async ({ context }) => {
 		const repoData = await getGitHubRepoStats(context.repoUrl);
 		const languages = await getRepositoryLanguages(context.repoUrl);
+		const commitActivity = await getRepoCommitActivity(context.repoUrl);
+		const commitsChartUrl = generateCommitsOverTimeChartUrl(commitActivity);
 		
 		const barChartUrl = generateBarChartUrl({
 			stars: repoData.statistics.stars,
@@ -123,7 +125,6 @@ export const repositoryVisualizationTool = createTool({
 		
 		const pieChartUrl = generatePieChartUrl(languages);
 		
-		// Create a friendly visualization report
 		const languageCount = Object.keys(languages).length;
 		const topLanguage = repoData.statistics.primaryLanguage || "Not specified";
 		const totalStars = repoData.statistics.stars.toLocaleString();
@@ -156,6 +157,14 @@ ${barChartUrl ? `![Repository Statistics Bar Chart](${barChartUrl})` : ''}
 Your project uses **${languageCount}** different programming languages, with **${topLanguage}** being the primary language. Here's how the code is distributed:
 
 ${pieChartUrl ? `![Language Distribution Pie Chart](${pieChartUrl})` : ''}
+
+---
+
+## 📆 **Commits Over Time**
+
+Here's how the commit activity has trended over the past year (each point is a week):
+
+${commitsChartUrl ? `![Commits Over Time Line Chart](${commitsChartUrl})` : 'No commit activity data available.'}
 
 ---
 
@@ -255,29 +264,39 @@ function generateBarChartUrl({ stars, forks, openIssues, openPRs, closedPRs }: {
 		}
 	};
 	try {
-		return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}`;
+		return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=500&height=220`;
 	} catch (e) {
 		return '';
 	}
+}
+
+function getColorPalette(n: number): string[] {
+  const baseColors = [
+    '#facc15', '#38bdf8', '#f87171', '#34d399', '#a78bfa',
+    '#fb7185', '#fbbf24', '#10b981', '#8b5cf6', '#06b6d4',
+    '#eab308', '#0ea5e9', '#ef4444', '#22d3ee', '#6366f1',
+    '#f472b6', '#fde68a', '#4ade80', '#c084fc', '#7dd3fc'
+  ];
+  const colors: string[] = [];
+  for (let i = 0; i < n; i++) {
+    colors.push(baseColors[i % baseColors.length]);
+  }
+  return colors;
 }
 
 function generatePieChartUrl(languages: GitHubLanguage) {
 	const languageNames = Array.isArray(Object.keys(languages)) && Object.keys(languages).length > 0 ? Object.keys(languages) : [];
 	const languageBytes = Array.isArray(Object.values(languages)) && Object.values(languages).length > 0 ? Object.values(languages) : [];
 	if (languageNames.length === 0 || languageBytes.length === 0) return '';
-	const colors = [
-		'#facc15', '#38bdf8', '#f87171', '#34d399', '#a78bfa',
-		'#fb7185', '#fbbf24', '#10b981', '#8b5cf6', '#06b6d4'
-	];
+	const colors = getColorPalette(languageNames.length);
 	const chartConfig = {
 		type: 'pie',
 		data: {
 			labels: languageNames,
 			datasets: [{
 				data: languageBytes,
-				backgroundColor: colors.slice(0, languageNames.length),
-				borderWidth: 2,
-				borderColor: '#ffffff'
+				backgroundColor: colors,
+				borderWidth: 0
 			}]
 		},
 		options: {
@@ -293,7 +312,7 @@ function generatePieChartUrl(languages: GitHubLanguage) {
 		}
 	};
 	try {
-		return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}`;
+		return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=500&height=220`;
 	} catch (e) {
 		return '';
 	}
@@ -1122,5 +1141,70 @@ async function getGoodFirstIssues(repoUrl: string) {
 		};
 	} catch (error: any) {
 		return { issues: [], repo, owner, message: `Error fetching issues: ${error.message}` };
+	}
+} 
+
+// Fetch commit activity (aggregate by month for shorter URLs)
+async function getRepoCommitActivity(repoUrl: string): Promise<{ labels: string[]; data: number[] }> {
+	const { owner, repo } = parseGitHubUrl(repoUrl);
+	const githubToken = process.env.GITHUB_TOKEN;
+	const headers: Record<string, string> = {
+		"Accept": "application/vnd.github+json"
+	};
+	if (githubToken) {
+		headers["Authorization"] = `Bearer ${githubToken}`;
+	}
+	try {
+		const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/stats/commit_activity`, { headers });
+		if (!response.ok) return { labels: [], data: [] };
+		const weeks = await response.json();
+		if (!Array.isArray(weeks) || weeks.length === 0) return { labels: [], data: [] };
+		// Aggregate by month
+		const monthly: Record<string, number> = {};
+		weeks.forEach((w: any) => {
+			const d = new Date(w.week * 1000);
+			const month = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+			monthly[month] = (monthly[month] || 0) + w.total;
+		});
+		const labels = Object.keys(monthly);
+		const data = labels.map(month => monthly[month]);
+		return { labels, data };
+	} catch (e) {
+		return { labels: [], data: [] };
+	}
+}
+
+// Generate a QuickChart line chart for commits over time
+function generateCommitsOverTimeChartUrl(commits: { labels: string[]; data: number[] }) {
+	if (!commits.labels.length || !commits.data.length) return '';
+	const chartConfig = {
+		type: 'line',
+		data: {
+			labels: commits.labels,
+			datasets: [{
+				label: 'Commits per Week',
+				data: commits.data,
+				fill: false,
+				borderColor: '#a78bfa',
+				backgroundColor: '#a78bfa',
+				tension: 0.2,
+				pointRadius: 1,
+				pointHoverRadius: 3,
+			}],
+		},
+		options: {
+			plugins: {
+				legend: { display: false },
+				title: { display: true, text: 'Commits Over Time' },
+			},
+			scales: {
+				y: { beginAtZero: true }
+			},
+		}
+	};
+	try {
+		return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=500&height=220`;
+	} catch (e) {
+		return '';
 	}
 } 
