@@ -1,6 +1,9 @@
 import { Agent } from "@mastra/core/agent";
 import { githubReporterWorkflow } from "./github-reporter-workflow";
-import { goodFirstIssuesTool, goodFirstIssuesWithGuideTool, repositoryVisualizationTool } from "./github-reporter-tool";
+import { githubStatisticsTool } from "./github-statistics-tool";
+import { repositoryVisualizationTool } from "./repository-visualization-tool";
+import { goodFirstIssuesTool } from "./good-first-issues-tool";
+import { goodFirstIssuesWithGuideTool } from "./good-first-issues-with-guide-tool";
 import { model } from "../../config";
 
 const name = "GitHub Reporter Agent";
@@ -38,5 +41,10 @@ export const githubReporterAgent = new Agent({
   instructions,
   model,
   workflows: { githubReporterWorkflow },
-  tools: { goodFirstIssuesTool, goodFirstIssuesWithGuideTool, repositoryVisualizationTool }
+  tools: { 
+    githubStatisticsTool, 
+    repositoryVisualizationTool, 
+    goodFirstIssuesTool, 
+    goodFirstIssuesWithGuideTool 
+  }
 }); 

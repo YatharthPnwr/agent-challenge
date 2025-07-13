@@ -4,14 +4,16 @@
       "id": "agents",
       "args": {
         "gpu": true,
-        "image": "docker.io/yourusername/agent-challenge:latest",
+        "image": "docker.io/yatharthsinghpanwar/agent-challenge:dev",
         "expose": [
           {
             "port": 8080
           }
         ],
         "entrypoint": [
-          "/bin/sh"
+          "/bin/sh",
+          "-c",
+          "ollama serve & sleep 5 && ollama pull qwen2.5:7b && pnpm dev"
         ]
       },
       "type": "container/run"
